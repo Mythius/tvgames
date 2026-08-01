@@ -23,10 +23,13 @@ function renderConnecting() {
 function renderLobby() {
 	const wrap = el(`<div class="stack center" style="width:100%; gap:28px;"></div>`);
 
+	const joinUrl = `${location.origin}/?code=${latestState.code}`;
+	const qrSrc = `https://msouthwick.com/qr/qr.html?${encodeURIComponent(joinUrl)}`;
 	wrap.appendChild(el(`
 		<div class="center">
-			<p class="muted">Join at <strong>${location.origin}${location.port ? '' : ''}</strong></p>
+			<p class="muted">Join at <strong>${location.origin}</strong></p>
 			<div class="lobby-code">${latestState.code}</div>
+			<div class="qr-box"><iframe src="${qrSrc}" title="Join QR code" frameborder="0"></iframe></div>
 		</div>
 	`));
 
