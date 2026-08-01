@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <link rel="icon" type="image/x-icon" href="icon.png" />
+    <!-- <script src="voice.js"></script> -->
+    <script src="helpers.js"></script>
+  </head>
+  <body>
+    <button>Check</button>
+    <p></p>
+    <script src="music.js"></script>
+    <script>
+      async function handleResult(text) {
+        document.querySelector("p").innerHTML += text + "<br>";
+        // Voice.speak(text);
+      }
+
+      // Voice.startListening(handleResult, false);
+
+      document.on("click", async (e) => {
+        let LakeShoreDrive = await Music.loadSong("46MX86XQqYCZRvwPpeq4Gi");
+        LakeShoreDrive.play();
+      });
+    </script>
+    <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
+    <div id="embed-iframe"></div>
+  </body>
+</html>
