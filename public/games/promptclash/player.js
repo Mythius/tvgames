@@ -93,8 +93,22 @@
 		`));
 	}
 
+	// The container persists across state:update broadcasts (see play.js), so
+	// this only needs to touch the DOM when something relevant to THIS player
+	// actually changed. Otherwise every other player's submission/vote would
+	// blow away an in-progress <input>, killing its focus, typed text, and
+	// (on mobile) the on-screen keyboard.
+	let lastContainer = null;
+	let lastSignature = null;
+
 	function renderPlayer(container, state, conn) {
 		const game = state.game;
+		const signature = JSON.stringify({ phase: game.phase, round: game.round, you: state.you });
+		if (container === lastContainer && signature === lastSignature) return;
+		lastContainer = container;
+		lastSignature = signature;
+
+		container.innerHTML = '';
 		if (game.phase === 'writing') renderWriting(container, state, conn);
 		else if (game.phase === 'judging') renderJudging(container, state, conn);
 		else if (game.phase === 'roundResults' || game.phase === 'gameOver') renderScoreboard(container, state);

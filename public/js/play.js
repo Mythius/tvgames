@@ -5,10 +5,22 @@ let latestState = null;
 let joinError = '';
 let joining = false;
 
+let mountedGameContainer = null;
+let mountedGameId = null;
+
 function render() {
-	app.innerHTML = '';
-	if (!latestState) return renderJoin();
-	if (latestState.phase === 'lobby') return renderLobby();
+	if (!latestState) {
+		mountedGameContainer = null;
+		mountedGameId = null;
+		app.innerHTML = '';
+		return renderJoin();
+	}
+	if (latestState.phase === 'lobby') {
+		mountedGameContainer = null;
+		mountedGameId = null;
+		app.innerHTML = '';
+		return renderLobby();
+	}
 	if (latestState.phase === 'in-game') return renderGame();
 }
 
@@ -77,13 +89,24 @@ function leaveLobby() {
 	render();
 }
 
+// The game container is only recreated when we first enter the game screen
+// or switch games - never on every state:update. This lets a game's own
+// renderer decide when to touch the DOM, so an in-progress text input (e.g.
+// someone mid-answer in PromptClash) isn't destroyed just because some other
+// player's action triggered a broadcast to everyone.
 function renderGame() {
 	const gameId = latestState.game && latestState.game.gameId;
+	if (!mountedGameContainer || mountedGameId !== gameId) {
+		app.innerHTML = '';
+		mountedGameContainer = el(`<div style="width:100%"></div>`);
+		mountedGameId = gameId;
+		app.appendChild(mountedGameContainer);
+	}
 	const renderer = window.GameRenderers && window.GameRenderers[gameId];
 	if (renderer && renderer.renderPlayer) {
-		renderer.renderPlayer(app, latestState, conn, { leaveLobby });
-	} else {
-		app.appendChild(el(`<div class="center"><p>Unsupported game state.</p></div>`));
+		renderer.renderPlayer(mountedGameContainer, latestState, conn, { leaveLobby });
+	} else if (!mountedGameContainer.childElementCount) {
+		mountedGameContainer.appendChild(el(`<div class="center"><p>Unsupported game state.</p></div>`));
 	}
 }
 
