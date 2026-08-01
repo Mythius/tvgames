@@ -22,3 +22,4 @@ module.exports = { register, getGame, listGames };
 
 // Registered here so every game is available as soon as the registry is required.
 register(require('./promptclash/PromptClashGame'));
+register(require('./catchphrase/CatchphraseGame'));

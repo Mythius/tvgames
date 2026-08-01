@@ -41,12 +41,15 @@ function attachSocketHandlers(io, lobbyManager) {
 		socket.on('player:join', ({ code, name } = {}, ack) => {
 			const lobby = lobbyManager.getLobby(code);
 			if (!lobby) return safeAck(ack, { ok: false, error: 'Lobby not found' });
-			if (lobby.phase !== 'lobby') return safeAck(ack, { ok: false, error: 'Game already in progress' });
+			const midGame = lobby.phase === 'in-game';
+			const allowLateJoin = midGame && lobby.currentGame && lobby.currentGame.constructor.allowLateJoin;
+			if (midGame && !allowLateJoin) return safeAck(ack, { ok: false, error: 'Game already in progress' });
 			try {
 				const player = lobby.addPlayer(name);
 				player.socketId = socket.id;
 				socket.data.session = { code: lobby.code, role: 'player', playerId: player.id };
 				safeAck(ack, { ok: true, playerId: player.id, token: player.token });
+				if (allowLateJoin) lobby.currentGame.handlePlayerJoin(player);
 				lobby.broadcastState();
 			} catch (err) {
 				safeAck(ack, { ok: false, error: err.message });

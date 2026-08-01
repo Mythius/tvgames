@@ -207,3 +207,54 @@ body.tv .screen {
 	font-size: 1.2rem;
 }
 .scoreboard-row:first-child { border: 2px solid var(--accent); }
+
+/* --- Catch Phrase ---------------------------------------------------- */
+
+.player-chip.current-turn {
+	border: 2px solid var(--accent);
+	box-shadow: 0 0 12px var(--accent);
+}
+
+.buzzer-orb {
+	width: 140px;
+	height: 140px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 35% 30%, var(--accent2), var(--bg-alt) 70%);
+	border: 4px solid var(--bg-alt);
+	transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.buzzer-orb.pulse {
+	transform: scale(1.08);
+	box-shadow: 0 0 30px var(--accent2);
+}
+.buzzer-orb.buzz {
+	transform: scale(1.2);
+	background: radial-gradient(circle at 35% 30%, var(--danger), #4a0000 70%);
+	box-shadow: 0 0 60px var(--danger);
+}
+
+.catchphrase-toast {
+	margin-top: 16px;
+	font-size: 1.3rem;
+	font-weight: 700;
+	min-height: 1.6em;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+}
+.catchphrase-toast.visible { opacity: 1; }
+
+.phone-pulse-indicator {
+	width: 100%;
+	height: 6px;
+	border-radius: 999px;
+	background: var(--bg-alt);
+	transition: background 0.1s ease, box-shadow 0.1s ease;
+}
+.phone-pulse-indicator.pulse {
+	background: var(--accent2);
+	box-shadow: 0 0 16px var(--accent2);
+}
+.phone-pulse-indicator.buzz {
+	background: var(--danger);
+	box-shadow: 0 0 24px var(--danger);
+}

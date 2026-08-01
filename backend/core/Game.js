@@ -12,6 +12,9 @@ class Game {
 	static minPlayers = 1;
 	static maxPlayers = 99;
 
+	/** Whether players may join the lobby while this game is already in progress. */
+	static allowLateJoin = false;
+
 	constructor(lobby) {
 		this.lobby = lobby;
 	}
@@ -24,6 +27,9 @@ class Game {
 
 	/** Called for a `host:command` event routed to this game. */
 	handleHostAction(action, payload) {}
+
+	/** Called when a new player joins while the game is already in progress (only possible if allowLateJoin is true). */
+	handlePlayerJoin(player) {}
 
 	/** Called once a player is permanently removed (grace period expired or left voluntarily). */
 	handlePlayerLeave(player) {}

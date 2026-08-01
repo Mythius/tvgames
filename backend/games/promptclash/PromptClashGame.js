@@ -1,4 +1,5 @@
 const Game = require('../../core/Game');
+const shuffle = require('../../core/shuffle');
 const PROMPTS = require('./prompts');
 
 const WRITING_MS = 75 * 1000;
@@ -7,15 +8,6 @@ const REVEAL_AUTO_ADVANCE_MS = 15 * 1000;
 const ROUND_RESULTS_AUTO_ADVANCE_MS = 20 * 1000;
 const TOTAL_ROUNDS = 3;
 const NO_ANSWER_TEXT = '🤷 (no answer)';
-
-function shuffle(array) {
-	const copy = [...array];
-	for (let i = copy.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[copy[i], copy[j]] = [copy[j], copy[i]];
-	}
-	return copy;
-}
 
 class PromptClashGame extends Game {
 	static id = 'promptclash';
