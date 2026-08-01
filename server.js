@@ -1,53 +1,24 @@
-var express = require('express');
-var app = express();
-var http = require('http').createServer(app);
-var io = require('socket.io')(http);
-var fs = require('fs');
-var system = require('child_process');
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 
-var file = {
-	save: function(name,text){
-		fs.writeFile(name,text,e=>{
-			if(e) console.log(e);
-		});
-	},
-	read: function(name,callback){
-		fs.readFile(name,(error,buffer)=>{
-			if (error) console.log(error);
-			else callback(buffer.toString());
-		});
-	}
-}
+const LobbyManager = require('./backend/core/LobbyManager');
+const attachSocketHandlers = require('./backend/socketHandlers');
 
-class client{
-	static all = [];
-	constructor(socket){
-		this.socket = socket;
-		this.name = null;
-		this.tiles = [];
-		client.all.push(this);
-		socket.on('disconnect',e=>{
-			let index = client.all.indexOf(this);
-			if(index != -1){
-				client.all.splice(index,1);
-			}
-		});
-	}
-	emit(name,dat){
-		this.socket.emit(name,dat);
-	}
-}
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-const port = 80;
-const path = __dirname+'/';
+const PORT = process.env.PORT || 3000;
+const PUBLIC_DIR = __dirname + '/public';
 
-app.use(express.static(path+'site/'));
-app.get(/.*/,function(request,response){
-	response.sendFile(path+'site/');
-});
+app.use(express.static(PUBLIC_DIR));
+app.get('/tv', (req, res) => res.sendFile(PUBLIC_DIR + '/tv.html'));
+app.get('/play', (req, res) => res.sendFile(PUBLIC_DIR + '/play.html'));
 
-http.listen(port,()=>{console.log('Serving Port: '+port)});
+const lobbyManager = new LobbyManager(io);
+attachSocketHandlers(io, lobbyManager);
 
-io.on('connection',socket=>{
-	var c = new client(socket);
+server.listen(PORT, () => {
+	console.log(`Serving http://localhost:${PORT}`);
 });
