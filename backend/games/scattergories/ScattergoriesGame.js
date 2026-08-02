@@ -138,7 +138,24 @@ class ScattergoriesGame extends Game {
 		const clamped = Math.max(0, Math.min(200, Math.round(Number(score) || 0)));
 		player.score += clamped;
 		this.roundScoreSubmitted[player.id] = true;
-		this.lobby.broadcastState();
+		this.advanceIfEveryoneScored();
+	}
+
+	// True once every currently-connected player has submitted a score for
+	// this round. A disconnected player can't submit, so they don't hold up
+	// the group forever - the host's manual "Next Round" button is still
+	// there as a fallback either way.
+	allScoresSubmitted() {
+		const connected = [...this.lobby.players.values()].filter(p => p.connected);
+		return connected.length > 0 && connected.every(p => this.roundScoreSubmitted[p.id]);
+	}
+
+	advanceIfEveryoneScored() {
+		if (this.phase === 'reveal' && this.allScoresSubmitted()) {
+			this.startNextRound(); // also broadcasts
+		} else {
+			this.lobby.broadcastState();
+		}
 	}
 
 	// --- roster changes ------------------------------------------------------
@@ -150,7 +167,7 @@ class ScattergoriesGame extends Game {
 	handlePlayerLeave(player) {
 		delete this.answers[player.id];
 		delete this.roundScoreSubmitted[player.id];
-		this.lobby.broadcastState();
+		this.advanceIfEveryoneScored();
 	}
 
 	// --- state serialization -------------------------------------------------
