@@ -36,6 +36,7 @@ class CatchphraseGame extends Game {
 		this.currentWord = null;
 
 		this.roundActive = false;
+		this.awaitingStart = false; // timer is armed but paused until the current player taps "Start"
 		this.roundStart = null;
 		this.roundDuration = null;
 		this.pulseTimeout = null;
@@ -113,14 +114,29 @@ class CatchphraseGame extends Game {
 		return this.turnOrder.length > 0 && (this.mode === 'teams' || (this.mode === 'free' && this.freeTimerEnabled));
 	}
 
+	// A round is never auto-started - it's only armed. The current player
+	// decides when the room is ready and taps Start themselves, so there's
+	// no secret clock already running while everyone's still talking/celebrating.
 	syncTimer() {
 		const should = this.timerShouldRun();
-		if (should && !this.roundActive) this.startRoundTimer();
-		else if (!should && this.roundActive) this.stopTimer();
+		if (!should) {
+			this.stopTimer();
+			this.awaitingStart = false;
+			return;
+		}
+		if (!this.roundActive) this.awaitingStart = true;
+	}
+
+	handleStartTimer(player) {
+		if (player.id !== this.currentPlayerId()) return;
+		if (!this.awaitingStart || this.roundActive) return;
+		this.startRoundTimer();
+		this.lobby.broadcastState();
 	}
 
 	startRoundTimer() {
 		this.stopTimer();
+		this.awaitingStart = false;
 		this.roundActive = true;
 		this.roundStart = Date.now();
 		this.roundDuration = MIN_ROUND_MS + Math.random() * (MAX_ROUND_MS - MIN_ROUND_MS);
@@ -170,6 +186,7 @@ class CatchphraseGame extends Game {
 	// --- player actions ------------------------------------------------------
 
 	handlePlayerAction(player, action) {
+		if (action === 'startTimer') return this.handleStartTimer(player);
 		if (action !== 'gotIt') return;
 		if (player.id !== this.currentPlayerId()) return;
 
@@ -215,6 +232,7 @@ class CatchphraseGame extends Game {
 			this.turnIndex = 0;
 			this.currentWord = null;
 			this.stopTimer();
+			this.awaitingStart = false;
 			this.lobby.broadcastState();
 			return;
 		}
@@ -247,6 +265,7 @@ class CatchphraseGame extends Game {
 			mode: this.mode,
 			freeTimerEnabled: this.freeTimerEnabled,
 			timerRunning: this.roundActive,
+			awaitingStart: this.awaitingStart,
 			teamScores: this.mode === 'teams' ? this.teamScores : null,
 			turnOrder,
 			currentPlayerId: currentId,
@@ -261,6 +280,7 @@ class CatchphraseGame extends Game {
 			isCurrentPlayer,
 			word: isCurrentPlayer ? this.currentWord : null,
 			team: this.mode === 'teams' ? this.teamOf[player.id] || null : null,
+			canStartTimer: isCurrentPlayer && this.awaitingStart && !this.roundActive,
 		};
 	}
 }

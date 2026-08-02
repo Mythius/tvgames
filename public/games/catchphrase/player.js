@@ -53,10 +53,19 @@
 				<div class="card center" style="margin-top:16px;">
 					<p class="muted">Describe this without saying it!</p>
 					<h1 style="font-size:2.2rem;">${you.word}</h1>
-					<button style="margin-top:16px;width:100%;font-size:1.3em;">✅ Got it!</button>
+					${you.canStartTimer ? `<p class="muted">Take your time - start the timer whenever the room's ready.</p>` : ''}
+					${you.canStartTimer ? `<button class="accent2" id="start-timer" style="margin-top:8px;width:100%;font-size:1.1em;">▶ Start Timer</button>` : ''}
+					<button id="got-it" style="margin-top:12px;width:100%;font-size:1.3em;">✅ Got it!</button>
 				</div>
 			`);
-			card.querySelector('button').addEventListener('click', () => {
+			const startBtn = card.querySelector('#start-timer');
+			if (startBtn) {
+				startBtn.addEventListener('click', () => {
+					conn.send('player:action', { action: 'startTimer' });
+					startBtn.disabled = true;
+				});
+			}
+			card.querySelector('#got-it').addEventListener('click', () => {
 				conn.send('player:action', { action: 'gotIt' });
 			});
 			container.appendChild(card);

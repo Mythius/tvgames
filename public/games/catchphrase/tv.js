@@ -118,13 +118,17 @@
 		const teamScores = renderTeamScores(game);
 		if (teamScores) container.appendChild(teamScores);
 
+		let turnMessage = `<h2 style="margin-top:16px;">Waiting for players…</h2>`;
+		if (game.currentPlayerId) {
+			turnMessage = game.awaitingStart
+				? `<h2 style="margin-top:16px;">⏸ ${game.currentPlayerName}'s turn</h2><p class="muted">Waiting for ${game.currentPlayerName} to start the timer…</p>`
+				: `<h2 style="margin-top:16px;">🎤 ${game.currentPlayerName}'s turn</h2><p class="muted">Everyone else: shout out your guesses!</p>`;
+		}
 		const stage = el(`
 			<div class="center">
 				<div class="buzzer-orb"></div>
 				<div class="catchphrase-toast"></div>
-				${game.currentPlayerId
-					? `<h2 style="margin-top:16px;">🎤 ${game.currentPlayerName}'s turn</h2><p class="muted">Everyone else: shout out your guesses!</p>`
-					: `<h2 style="margin-top:16px;">Waiting for players…</h2>`}
+				${turnMessage}
 			</div>
 		`);
 		container.appendChild(stage);
