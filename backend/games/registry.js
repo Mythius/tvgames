@@ -24,3 +24,4 @@ module.exports = { register, getGame, listGames };
 register(require('./promptclash/PromptClashGame'));
 register(require('./catchphrase/CatchphraseGame'));
 register(require('./scattergories/ScattergoriesGame'));
+register(require('./guessthattune/GuessThatTuneGame'));
