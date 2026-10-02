@@ -81,7 +81,11 @@ Example Return Value:
     let text = await req.text();
     Music.spotifyToken = text;
     // Spotify renamed /tracks to /items (Feb 2026). Requires a user token from the playlist's owner/collaborator.
-    const endpoint = `https://api.spotify.com/v1/playlists/${playlistId}/items`;
+    // 'liked' loads the account's Liked Songs (needs the user-library-read scope).
+    const endpoint =
+      playlistId === "liked"
+        ? "https://api.spotify.com/v1/me/tracks?limit=50"
+        : `https://api.spotify.com/v1/playlists/${playlistId}/items`;
     // You need a valid OAuth token for Spotify Web API
     const token = Music.spotifyToken; // Set this elsewhere after authenticating
 
@@ -108,7 +112,7 @@ Example Return Value:
       const data = await res.json();
       // Skip local files, podcast episodes and removed tracks (no track id).
       const items = data.items
-        .map((entry) => entry.item)
+        .map((entry) => entry.item || entry.track) // /me/tracks still uses 'track'
         .filter((item) => item?.type === "track" && item.id);
       trackIds.push(...items.map((item) => item.id));
       tracks.push(
