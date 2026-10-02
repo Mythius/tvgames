@@ -7,7 +7,7 @@ const { displayTitle, normalize } = require('./titles');
 // Overridable via env var so this is testable without waiting it out.
 const CLIP_MS = Number(process.env.TUNE_CLIP_MS) || 30 * 1000;
 const ROUND_OPTIONS = [5, 10, 15, 20];
-const CHOICES_PER_DROPDOWN = 8; // the right answer + up to 7 others from the playlist
+const CHOICES_PER_DROPDOWN = 6; // the right answer + up to 5 others from the playlist
 const TITLE_BASE_POINTS = 500;
 const TITLE_SPEED_POINTS = 500; // extra, scaled by how much time was left
 const ARTIST_POINTS = 250;
