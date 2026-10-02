@@ -1,12 +1,9 @@
 (function () {
-	// Other players' correct guesses broadcast state to everyone, so the
-	// guessing screen is only rebuilt when something about *this* player's
-	// round changes - otherwise whatever they're typing would get wiped.
+	// Other players locking in broadcasts state to everyone, so the picking
+	// screen is only rebuilt when something about *this* player's round
+	// changes - otherwise their half-made dropdown choices would get wiped.
 	let lastContainer = null;
 	let lastSignature = null;
-	let listenersRegistered = false;
-	let currentRound = null;
-	let lastFeedback = null; // survives the re-render a correct guess triggers
 
 	function el(html) {
 		const div = document.createElement('div');
@@ -18,29 +15,9 @@
 		return String(text == null ? '' : text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 	}
 
-	function showFeedback(text, kind) {
-		lastFeedback = { round: currentRound, text, kind };
-		const box = document.querySelector('.tune-feedback');
-		if (!box) return;
-		box.textContent = text;
-		box.className = `tune-feedback ${kind}`;
-	}
-
-	function registerListeners(conn) {
-		if (listenersRegistered) return;
-		listenersRegistered = true;
-		conn.on('tune:guessResult', result => {
-			if (result.miss) {
-				showFeedback(`❌ "${result.guess}" - nope, keep trying!`, 'miss');
-				if (navigator.vibrate) navigator.vibrate(60);
-				return;
-			}
-			const parts = [];
-			if (result.newTitle) parts.push('the title');
-			if (result.newArtist) parts.push('the artist');
-			showFeedback(`✅ You got ${parts.join(' and ')}!`, 'hit');
-			if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
-		});
+	function options(choices, placeholder) {
+		return `<option value="" disabled selected>${placeholder}</option>` +
+			choices.map((c, i) => `<option value="${i}">${esc(c)}</option>`).join('');
 	}
 
 	function renderHeader(game, you) {
@@ -62,53 +39,76 @@
 		`));
 	}
 
-	function renderPlaying(container, state, conn) {
+	function renderPicking(container, state, conn) {
+		const game = state.game;
 		const you = state.you;
-		container.appendChild(renderHeader(state.game, you));
-		const done = you.gotTitle && you.gotArtist;
-		const card = el(`
-			<div class="card stack" style="width:100%;">
-				<div class="row" style="justify-content:center;gap:10px;">
-					<span class="tune-status ${you.gotTitle ? 'done' : ''}">🎵 Title ${you.gotTitle ? '✓' : '?'}</span>
-					<span class="tune-status ${you.gotArtist ? 'done' : ''}">🎤 Artist ${you.gotArtist ? '✓' : '?'}</span>
+		container.appendChild(renderHeader(game, you));
+
+		if (you.lockedIn) {
+			container.appendChild(el(`
+				<div class="card center" style="width:100%;">
+					<h2>🔒 Locked in!</h2>
+					<p style="margin:4px 0;">🎵 ${esc(you.myTitle)}</p>
+					${you.myArtist ? `<p style="margin:4px 0;">🎤 ${esc(you.myArtist)}</p>` : ''}
+					<p class="muted">Waiting for everyone else…</p>
 				</div>
-				${done
-					? `<h2 class="center">🎉 Nailed it! +${you.roundPoints}</h2><p class="muted center">Waiting for everyone else…</p>`
-					: `<form class="stack" id="guess-form">
-						<input type="text" id="guess" maxlength="120" autocomplete="off" autocapitalize="off" placeholder="${you.gotTitle ? 'Who sings it?' : you.gotArtist ? "What's the song called?" : 'Song title or artist…'}" />
-						<button type="submit" style="width:100%;">Guess</button>
-					</form>
-					<p class="muted" style="margin:0;font-size:0.85em;">Guess as many times as you like. You can type both, e.g. "Song by Artist".</p>`}
-				<div class="tune-feedback"></div>
-			</div>
-		`);
-		const form = card.querySelector('#guess-form');
-		if (form) {
-			const input = form.querySelector('#guess');
-			form.addEventListener('submit', e => {
-				e.preventDefault();
-				const text = input.value.trim();
-				if (!text) return;
-				conn.send('player:action', { action: 'guess', payload: { text } });
-				input.value = '';
-				input.focus();
-			});
-			setTimeout(() => input.focus(), 0);
+			`));
+			return;
 		}
+
+		const titles = game.titleChoices || [];
+		const artists = game.artistChoices;
+		const card = el(`
+			<form class="card stack" style="width:100%;" id="pick-form">
+				<label class="muted" for="pick-title">🎵 Song title</label>
+				<select class="tune-select" id="pick-title">${options(titles, 'Pick the song…')}</select>
+				${artists ? `
+					<label class="muted" for="pick-artist">🎤 Artist</label>
+					<select class="tune-select" id="pick-artist">${options(artists, 'Pick the artist…')}</select>
+				` : ''}
+				<button type="submit" id="lock-in" style="width:100%;margin-top:8px;" disabled>🔒 Lock it in</button>
+				<p class="muted center" style="margin:0;font-size:0.85em;">One answer per song - the faster you lock in a right title, the more it's worth.</p>
+			</form>
+		`);
+		const titleSelect = card.querySelector('#pick-title');
+		const artistSelect = card.querySelector('#pick-artist');
+		const button = card.querySelector('#lock-in');
+		const update = () => {
+			button.disabled = !titleSelect.value || (artistSelect && !artistSelect.value);
+		};
+		titleSelect.addEventListener('change', update);
+		if (artistSelect) artistSelect.addEventListener('change', update);
+		card.addEventListener('submit', e => {
+			e.preventDefault();
+			if (button.disabled) return;
+			button.disabled = true;
+			conn.send('player:action', {
+				action: 'lockIn',
+				payload: {
+					title: titles[Number(titleSelect.value)],
+					artist: artistSelect ? artists[Number(artistSelect.value)] : null,
+				},
+			});
+		});
 		container.appendChild(card);
-		if (lastFeedback && lastFeedback.round === state.game.round) showFeedback(lastFeedback.text, lastFeedback.kind);
 	}
 
 	function renderReveal(container, state) {
 		const game = state.game;
 		const you = state.you;
 		const a = game.answer || {};
+		const mark = ok => (ok ? '✅' : '❌');
+		const picks = you.lockedIn
+			? `<p style="margin:12px 0 0;">${mark(you.gotTitle)} You picked: ${esc(you.myTitle)}</p>
+				${you.myArtist ? `<p style="margin:4px 0 0;">${mark(you.gotArtist)} You picked: ${esc(you.myArtist)}</p>` : ''}`
+			: `<p class="muted" style="margin:12px 0 0;">You didn't lock in an answer.</p>`;
 		container.appendChild(renderHeader(game, you));
 		container.appendChild(el(`
 			<div class="card center" style="width:100%;">
 				${a.thumbnail ? `<img class="tune-art small" src="${esc(a.thumbnail)}" alt="" />` : ''}
 				<h2 style="margin:12px 0 4px;">${esc(a.name || '???')}</h2>
 				<p class="muted" style="margin:0;">${esc(a.artist || '')}</p>
+				${picks}
 				<h3 style="margin-top:16px;">${you.roundPoints ? `+${you.roundPoints} points` : 'No points this time'}</h3>
 			</div>
 		`));
@@ -126,18 +126,16 @@
 	}
 
 	function renderPlayer(container, state, conn) {
-		registerListeners(conn);
 		const game = state.game;
 		const you = state.you;
-		currentRound = game.round;
 
 		if (game.phase === 'playing') {
-			const sig = JSON.stringify([game.phase, game.round, you.gotTitle, you.gotArtist]);
+			const sig = JSON.stringify([game.phase, game.round, you.lockedIn]);
 			if (container === lastContainer && sig === lastSignature) return;
 			lastContainer = container;
 			lastSignature = sig;
 			container.innerHTML = '';
-			renderPlaying(container, state, conn);
+			renderPicking(container, state, conn);
 			return;
 		}
 

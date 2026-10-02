@@ -17,6 +17,7 @@ LakeShoreDrive.seek(10); // Skip to 10 Seconds.
 
 PLAYLIST 
 await Music.loadPlayList('7phO9PAhj7bU6TwcHPrr7s');
+Music.playListData // [{ id, name, artist, thumbnail }] for every song in it
 await Music.playNext():
 
 SONG META DATA
@@ -87,6 +88,7 @@ Example Return Value:
       throw new Error("Spotify OAuth token not set in Music.spotifyToken");
 
     let trackIds = [];
+    let tracks = []; // same order as trackIds, with the song data alongside
     let url = endpoint;
     while (url) {
       const res = await fetch(url, {
@@ -97,14 +99,22 @@ Example Return Value:
       if (!res.ok) throw new Error("Failed to fetch playlist tracks");
       const data = await res.json();
       // Skip local files, podcast episodes and removed tracks (no track id).
-      trackIds.push(
-        ...data.items
-          .filter((item) => item.track && item.track.id && item.track.type !== "episode")
-          .map((item) => item.track.id),
+      const items = data.items.filter(
+        (item) => item.track && item.track.id && item.track.type !== "episode",
+      );
+      trackIds.push(...items.map((item) => item.track.id));
+      tracks.push(
+        ...items.map((item) => ({
+          id: item.track.id,
+          name: item.track.name,
+          artist: (item.track.artists || []).map((a) => a.name).join(", "),
+          thumbnail: item.track.album?.images?.[0]?.url,
+        })),
       );
       url = data.next; // for pagination
     }
     Music.playList = trackIds;
+    Music.playListData = tracks;
     return trackIds;
   };
 

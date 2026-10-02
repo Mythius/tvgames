@@ -55,8 +55,8 @@
 
 	async function fetchPlaylist(conn, playlistId) {
 		try {
-			const trackIds = await Music.loadPlayList(playlistId);
-			await report(conn, 'tracks', { trackIds });
+			await Music.loadPlayList(playlistId);
+			await report(conn, 'tracks', { tracks: Music.playListData });
 		} catch (e) {
 			await report(conn, 'fetchFailed', { error: e && e.message });
 		}
@@ -65,7 +65,6 @@
 	async function loadTrack(conn, trackId) {
 		try {
 			const song = await Music.loadSong(trackId);
-			const data = await Music.getSongData(`spotify:track:${trackId}`);
 			song.addListener('playback_update', e => {
 				const d = e && e.data;
 				if (!d || d.isPaused || d.isBuffering || !(d.position > 0)) return;
@@ -74,7 +73,7 @@
 				report(conn, 'clipStarted', { trackId });
 			});
 			song.addListener('ready', () => song.play());
-			await report(conn, 'trackReady', { trackId, name: data.name, artist: data.artist, thumbnail: data.thumbnail });
+			await report(conn, 'trackReady', { trackId });
 			song.play();
 		} catch (e) {
 			console.warn('Guess That Tune: could not load track', trackId, e);
@@ -123,7 +122,7 @@
 		const panel = el(`
 			<div class="stack center" style="width:100%;gap:20px;">
 				<h1>🎵 Guess That Tune</h1>
-				<p class="muted">A song plays on the TV - type the title and artist on your phone. Faster = more points.</p>
+				<p class="muted">A song plays on the TV - pick the title and artist on your phone. Faster = more points.</p>
 				${game.error ? `<div class="error-banner">${esc(game.error)}</div>` : ''}
 				<div class="stack center" style="width:100%;">
 					<h3>Pick a genre</h3>
@@ -186,9 +185,9 @@
 
 	function renderProgress(game) {
 		const chips = game.progress.map(p => `
-			<div class="player-chip ${p.connected ? '' : 'offline'} ${p.title ? 'tune-solved' : ''}">
+			<div class="player-chip ${p.connected ? '' : 'offline'} ${p.locked ? 'tune-locked' : ''}">
 				<span class="dot"></span>${esc(p.name)}
-				<span class="tune-marks">${p.title ? '🎵' : '·'}${p.artist ? '🎤' : '·'}</span>
+				<span class="tune-marks">${p.locked ? '🔒' : '🤔'}</span>
 			</div>
 		`).join('');
 		return el(`<div class="tv-players-grid" style="margin-top:20px;">${chips || '<p class="muted">Waiting for players…</p>'}</div>`);
@@ -210,7 +209,8 @@
 						<div class="tune-ring-seconds">--</div>
 					</div>
 				</div>
-				<h2 style="margin-top:20px;">What's this song? 🎵 Title + 🎤 Artist</h2>
+				<h2 style="margin-top:20px;">${game.artistChoices ? "What's this song? 🎵 Title + 🎤 Artist" : "What's this song called? 🎵"}</h2>
+				<p class="muted" style="margin:0;">Pick on your phone and lock it in.</p>
 				<div class="row" style="gap:12px;margin-top:8px;">
 					<button class="secondary small" id="replay">⏮ Replay</button>
 					<button class="secondary small" id="reveal">👀 Reveal now</button>

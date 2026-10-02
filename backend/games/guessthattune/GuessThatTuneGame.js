@@ -1,12 +1,13 @@
 const Game = require('../../core/Game');
 const shuffle = require('../../core/shuffle');
 const PLAYLISTS = require('./playlists');
-const { checkGuess } = require('./matching');
+const { displayTitle, normalize } = require('./titles');
 
-// How long players get to guess once the song actually starts playing.
+// How long players get to answer once the song actually starts playing.
 // Overridable via env var so this is testable without waiting it out.
 const CLIP_MS = Number(process.env.TUNE_CLIP_MS) || 30 * 1000;
 const ROUND_OPTIONS = [5, 10, 15, 20];
+const CHOICES_PER_DROPDOWN = 8; // the right answer + up to 7 others from the playlist
 const TITLE_BASE_POINTS = 500;
 const TITLE_SPEED_POINTS = 500; // extra, scaled by how much time was left
 const ARTIST_POINTS = 250;
@@ -23,22 +24,39 @@ function parsePlaylistId(input) {
 	return match ? match[1] : null;
 }
 
+// The right answer plus other distinct entries from the playlist, in
+// alphabetical order so the answer's position gives nothing away.
+function buildChoices(answer, pool) {
+	const seen = new Set([normalize(answer)]);
+	const others = [];
+	for (const candidate of shuffle(pool)) {
+		const key = normalize(candidate);
+		if (!candidate || seen.has(key)) continue;
+		seen.add(key);
+		others.push(candidate);
+		if (others.length >= CHOICES_PER_DROPDOWN - 1) break;
+	}
+	return [answer, ...others].sort((a, b) => a.localeCompare(b));
+}
+
 /**
  * Guess That Tune: the TV plays a song through the Spotify embed (see
- * public/js/music.js) and everyone races to type the title and artist on
- * their phone. Faster correct titles earn more points; naming the artist is
- * a flat bonus.
+ * public/js/music.js) and everyone picks the title and artist from two
+ * dropdowns on their phone, filled with other songs from the same playlist.
+ * Each player locks in one answer per song. A right title scores more the
+ * faster it was locked in; the right artist is a flat bonus. Points are only
+ * added at the reveal so nobody can tell early whether they were right.
  *
  * Spotify is only reachable from the browser, so the TV does the fetching
  * and playback and reports back here: the server moves into a phase
  * ('fetching', 'loading'), the TV sees it and does the work, then answers
  * with a tvReport action ('tracks', 'trackReady', 'clipStarted', or a
- * failure). The server owns the answer, timer and scoring from there.
+ * failure). The server owns the answers, timer and scoring from there.
  */
 class GuessThatTuneGame extends Game {
 	static id = 'guessthattune';
 	static title = 'Guess That Tune';
-	static description = 'A song plays on the TV - race to type the title and artist on your phone. Faster answers score more.';
+	static description = 'A song plays on the TV - pick the title and artist on your phone. Faster answers score more.';
 	static minPlayers = 1;
 	static maxPlayers = 16;
 	static allowLateJoin = true;
@@ -52,14 +70,17 @@ class GuessThatTuneGame extends Game {
 		this.totalRounds = 10;
 		this.error = null;
 
+		this.library = new Map(); // trackId -> { name, artist, thumbnail } for the whole playlist
 		this.trackQueue = [];
 		this.round = 0;
 		this.roundsThisMatch = 0;
 		this.loadFailures = 0;
 		this.currentTrackId = null;
-		this.track = null; // { name, artists, artistLabel, thumbnail } - the answer
-		this.results = {}; // playerId -> { title, artist, points, titleRank }
-		this.titleSolvers = 0;
+		this.track = null; // the current answer
+		this.titleChoices = [];
+		this.artistChoices = null; // null when the playlist only has one artist
+		this.answers = {}; // playerId -> { title, artist, lockedAt }
+		this.results = {}; // playerId -> { title, artist, points } (filled in at reveal)
 		this.clipStartedAt = null;
 		this.phaseEndsAt = null;
 		this.timer = null;
@@ -155,12 +176,20 @@ class GuessThatTuneGame extends Game {
 		else if (type === 'clipStarted') this.onClipStarted(data);
 	}
 
-	onTracks({ trackIds }) {
+	onTracks({ tracks }) {
 		if (this.phase !== 'fetching') return;
-		const ids = [...new Set((Array.isArray(trackIds) ? trackIds : []).filter(id => typeof id === 'string' && id))];
-		if (!ids.length) return this.backToSetup('That playlist has no playable songs.');
-		this.trackQueue = shuffle(ids);
-		this.roundsThisMatch = Math.min(this.totalRounds, ids.length);
+		this.library = new Map();
+		for (const t of Array.isArray(tracks) ? tracks : []) {
+			if (!t || typeof t.id !== 'string' || !t.id || !t.name || this.library.has(t.id)) continue;
+			this.library.set(t.id, {
+				name: displayTitle(String(t.name).slice(0, 200)),
+				artist: String(t.artist || 'Unknown artist').slice(0, 200),
+				thumbnail: typeof t.thumbnail === 'string' ? t.thumbnail : null,
+			});
+		}
+		if (this.library.size < 2) return this.backToSetup('That playlist needs at least 2 playable songs.');
+		this.trackQueue = shuffle([...this.library.keys()]);
+		this.roundsThisMatch = Math.min(this.totalRounds, this.library.size);
 		this.round = 0;
 		this.loadFailures = 0;
 		for (const player of this.lobby.players.values()) player.score = 0;
@@ -178,24 +207,21 @@ class GuessThatTuneGame extends Game {
 		this.round += 1;
 		this.phase = 'loading';
 		this.currentTrackId = this.trackQueue.pop();
-		this.track = null;
+		this.track = this.library.get(this.currentTrackId);
+		this.answers = {};
 		this.results = {};
-		this.titleSolvers = 0;
 		this.clipStartedAt = null;
 		this.phaseEndsAt = null;
+
+		const others = [...this.library.values()].filter(t => t !== this.track);
+		this.titleChoices = buildChoices(this.track.name, others.map(t => t.name));
+		const artistChoices = buildChoices(this.track.artist, others.map(t => t.artist));
+		this.artistChoices = artistChoices.length > 1 ? artistChoices : null;
 		this.lobby.broadcastState();
 	}
 
-	onTrackReady({ trackId, name, artist, thumbnail }) {
-		if (this.phase !== 'loading' || trackId !== this.currentTrackId || !name) return;
-		const artistLabel = String(artist || '').slice(0, 200);
-		this.track = {
-			name: String(name).slice(0, 200),
-			artistLabel,
-			// Check the full credit plus each individual artist.
-			artists: [artistLabel, ...artistLabel.split(', ')],
-			thumbnail: typeof thumbnail === 'string' ? thumbnail : null,
-		};
+	onTrackReady({ trackId }) {
+		if (this.phase !== 'loading' || trackId !== this.currentTrackId) return;
 		this.loadFailures = 0;
 		this.phase = 'buffering';
 		this.lobby.broadcastState();
@@ -226,9 +252,28 @@ class GuessThatTuneGame extends Game {
 	reveal() {
 		if (this.phase !== 'playing' && this.phase !== 'buffering') return;
 		this.clearTimer();
+		this.scoreRound();
 		this.phase = 'reveal';
 		this.phaseEndsAt = null;
 		this.lobby.broadcastState();
+	}
+
+	scoreRound() {
+		this.results = {};
+		for (const [playerId, answer] of Object.entries(this.answers)) {
+			const player = this.lobby.players.get(playerId);
+			if (!player) continue;
+			const title = answer.title === this.track.name;
+			const artist = Boolean(this.artistChoices) && answer.artist === this.track.artist;
+			let points = 0;
+			if (title) {
+				const remainingFrac = Math.max(0, Math.min(1, (this.phaseEndsAt - answer.lockedAt) / CLIP_MS));
+				points += TITLE_BASE_POINTS + Math.round(TITLE_SPEED_POINTS * remainingFrac);
+			}
+			if (artist) points += ARTIST_POINTS;
+			player.score += points;
+			this.results[playerId] = { title, artist, points };
+		}
 	}
 
 	skipSong() {
@@ -255,49 +300,21 @@ class GuessThatTuneGame extends Game {
 	// --- player actions ------------------------------------------------------
 
 	handlePlayerAction(player, action, payload) {
-		if (action === 'guess') this.handleGuess(player, (payload && payload.text) || '');
+		if (action === 'lockIn') this.lockIn(player, payload || {});
 	}
 
-	handleGuess(player, text) {
-		if (this.phase !== 'playing' || !this.track) return;
-		const guess = String(text).slice(0, 120);
-		if (!guess.trim()) return;
-		const result = this.results[player.id] || (this.results[player.id] = { title: false, artist: false, points: 0, titleRank: null });
-		const hit = checkGuess(guess, this.track);
-		const newTitle = hit.title && !result.title;
-		const newArtist = hit.artist && !result.artist;
-
-		if (newTitle) {
-			const remainingFrac = Math.max(0, (this.phaseEndsAt - Date.now()) / CLIP_MS);
-			const points = TITLE_BASE_POINTS + Math.round(TITLE_SPEED_POINTS * remainingFrac);
-			result.title = true;
-			result.points += points;
-			player.score += points;
-			this.titleSolvers += 1;
-			result.titleRank = this.titleSolvers;
-		}
-		if (newArtist) {
-			result.artist = true;
-			result.points += ARTIST_POINTS;
-			player.score += ARTIST_POINTS;
-		}
-
-		// Misses only go back to the guesser - no need to redraw every screen.
-		this.lobby.sendToPlayer(player.id, 'tune:guessResult', {
-			guess,
-			newTitle,
-			newArtist,
-			miss: !newTitle && !newArtist,
-		});
-		if (newTitle || newArtist) {
-			if (this.everyoneSolved()) this.reveal();
-			else this.lobby.broadcastState();
-		}
+	lockIn(player, { title, artist }) {
+		if (this.phase !== 'playing' || this.answers[player.id]) return;
+		if (!this.titleChoices.includes(title)) return;
+		if (this.artistChoices && !this.artistChoices.includes(artist)) return;
+		this.answers[player.id] = { title, artist: this.artistChoices ? artist : null, lockedAt: Date.now() };
+		if (this.everyoneLockedIn()) this.reveal();
+		else this.lobby.broadcastState();
 	}
 
-	everyoneSolved() {
+	everyoneLockedIn() {
 		const connected = [...this.lobby.players.values()].filter(p => p.connected);
-		return connected.length > 0 && connected.every(p => this.results[p.id] && this.results[p.id].title && this.results[p.id].artist);
+		return connected.length > 0 && connected.every(p => this.answers[p.id]);
 	}
 
 	// --- roster changes ------------------------------------------------------
@@ -307,15 +324,16 @@ class GuessThatTuneGame extends Game {
 	}
 
 	handlePlayerLeave(player) {
-		delete this.results[player.id];
-		if (this.phase === 'playing' && this.everyoneSolved()) this.reveal();
+		delete this.answers[player.id];
+		if (this.phase === 'playing' && this.everyoneLockedIn()) this.reveal();
 		else this.lobby.broadcastState();
 	}
 
 	// --- state serialization -------------------------------------------------
 
 	getPublicState() {
-		const showAnswer = this.phase === 'reveal';
+		const revealed = this.phase === 'reveal';
+		const asking = ['loading', 'buffering', 'playing'].includes(this.phase);
 		const players = [...this.lobby.players.values()];
 		return {
 			gameId: GuessThatTuneGame.id,
@@ -332,19 +350,32 @@ class GuessThatTuneGame extends Game {
 			currentTrackId: this.currentTrackId,
 			clipMs: CLIP_MS,
 			phaseEndsAt: this.phaseEndsAt,
-			answer: showAnswer && this.track
-				? { name: this.track.name, artist: this.track.artistLabel, thumbnail: this.track.thumbnail }
-				: null,
+			titleChoices: asking ? this.titleChoices : null,
+			artistChoices: asking ? this.artistChoices : null,
+			answer: revealed && this.track ? { ...this.track } : null,
 			progress: players.map(p => {
-				const r = this.results[p.id] || {};
-				return { id: p.id, name: p.name, connected: p.connected, score: p.score, title: Boolean(r.title), artist: Boolean(r.artist), points: r.points || 0, titleRank: r.titleRank || null };
+				const r = (revealed && this.results[p.id]) || {};
+				return {
+					id: p.id,
+					name: p.name,
+					connected: p.connected,
+					score: p.score,
+					locked: Boolean(this.answers[p.id]),
+					title: Boolean(r.title),
+					artist: Boolean(r.artist),
+					points: r.points || 0,
+				};
 			}),
 		};
 	}
 
 	getPlayerState(player) {
-		const r = this.results[player.id] || {};
+		const answer = this.answers[player.id] || null;
+		const r = (this.phase === 'reveal' && this.results[player.id]) || {};
 		return {
+			lockedIn: Boolean(answer),
+			myTitle: answer ? answer.title : null,
+			myArtist: answer ? answer.artist : null,
 			gotTitle: Boolean(r.title),
 			gotArtist: Boolean(r.artist),
 			roundPoints: r.points || 0,

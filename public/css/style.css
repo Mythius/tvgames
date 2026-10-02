@@ -396,3 +396,16 @@ body.tv .screen {
 .tune-feedback { min-height: 1.4em; font-weight: 700; text-align: center; }
 .tune-feedback.hit { color: var(--good); }
 .tune-feedback.miss { color: var(--warn); }
+.player-chip.tune-locked { border: 2px solid var(--accent2); }
+
+select.tune-select {
+	font: inherit;
+	background: var(--bg-alt);
+	border: 2px solid var(--card);
+	color: var(--text);
+	border-radius: var(--radius);
+	padding: 12px 14px;
+	min-height: 48px;
+	width: 100%;
+}
+select.tune-select:focus { outline: none; border-color: var(--accent2); }
