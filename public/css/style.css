@@ -338,3 +338,74 @@ body.tv .screen {
 	white-space: nowrap;
 }
 .scatter-reveal-table th { color: var(--muted); }
+
+/* --- Guess That Tune ---------------------------------------------------- */
+
+.tune-vinyl {
+	width: 160px;
+	height: 160px;
+	border-radius: 50%;
+	background:
+		radial-gradient(circle, var(--accent) 0 18%, #111 19% 21%, transparent 22%),
+		repeating-radial-gradient(circle, #1a1a1a 0 3px, #262626 3px 5px);
+	box-shadow: 0 0 0 4px var(--bg-alt), 0 10px 30px rgba(0, 0, 0, 0.5);
+	flex-shrink: 0;
+}
+.tune-vinyl.small { width: 90px; height: 90px; }
+.tune-vinyl.spinning { animation: tune-spin 1.8s linear infinite; box-shadow: 0 0 0 4px var(--bg-alt), 0 0 40px var(--accent); }
+@keyframes tune-spin { to { transform: rotate(360deg); } }
+
+.tune-art {
+	width: 220px;
+	height: 220px;
+	border-radius: var(--radius);
+	object-fit: cover;
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.tune-art.small { width: 140px; height: 140px; }
+
+.tune-ring-wrap {
+	position: relative;
+	width: 120px;
+	height: 120px;
+}
+.tune-ring-wrap .ring-bg { stroke: var(--bg-alt); }
+.tune-ring-wrap .ring-fg { stroke: var(--accent2); transition: stroke-dashoffset 0.2s linear; }
+.tune-ring-seconds {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.8rem;
+	font-weight: 800;
+}
+
+.player-chip.tune-solved { border: 2px solid var(--good); }
+.tune-marks { letter-spacing: 2px; }
+
+.tune-status {
+	background: var(--bg-alt);
+	border-radius: 999px;
+	padding: 6px 14px;
+	font-weight: 700;
+	color: var(--muted);
+}
+.tune-status.done { color: var(--good); border: 1px solid var(--good); }
+
+.tune-feedback { min-height: 1.4em; font-weight: 700; text-align: center; }
+.tune-feedback.hit { color: var(--good); }
+.tune-feedback.miss { color: var(--warn); }
+.player-chip.tune-locked { border: 2px solid var(--accent2); }
+
+select.tune-select {
+	font: inherit;
+	background: var(--bg-alt);
+	border: 2px solid var(--card);
+	color: var(--text);
+	border-radius: var(--radius);
+	padding: 12px 14px;
+	min-height: 48px;
+	width: 100%;
+}
+select.tune-select:focus { outline: none; border-color: var(--accent2); }
