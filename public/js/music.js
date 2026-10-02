@@ -76,7 +76,7 @@ Example Return Value:
 
   Music.loadPlayList = async function (playlistId) {
     // Spotify Web API endpoint for playlist tracks
-    let req = await fetch("https://msouthwick.com/command.spotify");
+    let req = await fetch("https://api.msouthwick.com/spotify/token");
     let text = await req.text();
     Music.spotifyToken = text;
     // Spotify renamed /tracks to /items (Feb 2026). Requires a user token from the playlist's owner/collaborator.
