@@ -6,7 +6,7 @@
 module.exports = [
 	{ id: 'mix', name: '🎶 General Mix', playlistId: 'liked' }, // the account's Liked Songs
 	{ id: 'pop', name: '🎤 Popular', playlistId: '3aI4cbjZ770YaDcPCPHo3t' },
-	{ id: 'rock', name: '🎸 Rock', playlistId: '7phO9PAhj7bU6TwcHPrr7s' },
+	{ id: 'rock', name: '🎸 Rock', playlistId: '71qfd7P5mVFZAIpB2XyYVv' },
 	{ id: 'hiphop', name: 'Musicals', playlistId: '10H1QgFcshsKJd9sEYGuOE' },
 	{ id: 'country', name: '🤠 Country', playlistId: '' },
 	{ id: 'oldies', name: '📻 Oldies', playlistId: '' },
